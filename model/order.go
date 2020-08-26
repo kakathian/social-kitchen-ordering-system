@@ -1,16 +1,16 @@
 package model
 
 type Order struct {
-	id string
+	Id string `json:"id"`
 
-	name string
+	Name string `json:"name"`
 
-	temp string
+	Temp string `json:"temp"`
 
 	// Shelf wait max duration (seconds)"decayRate": ​0.45​
-	shelfLife int32
+	ShelfLife int32 `json:"shelfLife"`
 
-	decayRate float32
+	DecayRate float32 `json:"decayRate"`
 }
 
 type Orders struct {

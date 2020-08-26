@@ -12,6 +12,6 @@ func ReadFile(name string, content interface{}) error {
 		return err
 	}
 
-	json.Unmarshal(jsonFile, &content)
+	json.Unmarshal([]byte(jsonFile), &content)
 	return nil
 }

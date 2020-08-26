@@ -2,14 +2,18 @@ package repository
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"sharedkitchenordersystem/model"
 	"sharedkitchenordersystem/utility"
 )
 
-var ordersData []model.Order
+var OrdersData []model.Order
 
 func InitOrders() {
-	ordersData = []model.Order{}
-	utility.ReadFile("orders.json", &ordersData)
-	fmt.Println(len(ordersData))
+	OrdersData = []model.Order{}
+	_, b, _, _ := runtime.Caller(0)
+
+	utility.ReadFile(filepath.Dir(b)+"/orders.json", OrdersData)
+	fmt.Println(len(OrdersData))
 }
