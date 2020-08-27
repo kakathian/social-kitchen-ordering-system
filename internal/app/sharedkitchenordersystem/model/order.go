@@ -1,5 +1,9 @@
 package model
 
+import (
+	"time"
+)
+
 type Order struct {
 	Id string `json:"id"`
 
@@ -15,4 +19,9 @@ type Order struct {
 
 type Orders struct {
 	Orders []Order
+}
+
+type OrderRequest struct {
+	Order Order
+	time  time.Time
 }
