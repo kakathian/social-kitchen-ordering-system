@@ -4,8 +4,9 @@ import (
 	"time"
 )
 
+// Order .
 type Order struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 
 	Name string `json:"name"`
 
@@ -17,10 +18,12 @@ type Order struct {
 	DecayRate float32 `json:"decayRate"`
 }
 
+// Orders .
 type Orders struct {
 	Orders []Order
 }
 
+// OrderRequest .
 type OrderRequest struct {
 	Order Order
 	Time  time.Time
