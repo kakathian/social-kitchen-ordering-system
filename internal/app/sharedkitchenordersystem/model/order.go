@@ -23,5 +23,5 @@ type Orders struct {
 
 type OrderRequest struct {
 	Order Order
-	time  time.Time
+	Time  time.Time
 }
