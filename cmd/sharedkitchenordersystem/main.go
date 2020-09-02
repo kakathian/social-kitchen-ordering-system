@@ -2,8 +2,9 @@ package main
 
 import (
 	"flag"
-	"go.uber.org/zap"
 	system "sharedkitchenordersystem/internal/app/sharedkitchenordersystem"
+
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -20,8 +21,8 @@ func main() {
 	flag.IntVar(&noOfOrdersToRead, "noOfOrdersToRead", 2, "Orders receive rate")
 	flag.Parse()
 
-	// Initialize application
-	system.Initialize(noOfOrdersToRead)
+	// Start application
+	system.Start(noOfOrdersToRead)
 }
 
 func createZapLogger() *zap.Logger {
