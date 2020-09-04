@@ -48,11 +48,11 @@ func Start(noOfOrdersToRead int) {
 		zap.S().Info("Admin: Shutting down kitchen")
 
 		// stop services
-		dispatchService.Stop(noOfOrdersToRead)
-		storageService.Stop(noOfOrdersToRead)
-		kitchenService.Stop(noOfOrdersToRead)
+		//dispatchService.Stop()
+		//storageService.Stop()
+		//kitchenService.Stop()
 
-		close(orderReaderChannel)
+		//close(orderReaderChannel)
 	}(order.OrdersData)
 
 	for {

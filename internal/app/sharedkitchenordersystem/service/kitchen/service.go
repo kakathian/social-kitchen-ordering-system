@@ -4,6 +4,7 @@ import (
 	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/model"
 	dispatchService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/dispatch"
 	storageService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/storage"
+	"sharedkitchenordersystem/internal/pkg"
 	"time"
 
 	"go.uber.org/zap"
@@ -32,8 +33,13 @@ func internalProcess() {
 					break
 				}
 				// Send order ready event
-				zap.S().Infof("Kitchen: Order '%s'(%s) is ready at %s", orderReq.Name, orderReq.ID, time.Now())
-				storageService.Process(orderReq)
+				shelfItem := model.ShelfItem{
+					Order:        orderReq,
+					CreatedTime:  time.Now(),
+					MaxLifeTimeS: pkg.CalculateMaxAge(orderReq.ShelfLife, orderReq.DecayRate, 1), // assume 1 for now, then change dynamically later
+				}
+				zap.S().Infof("Kitchen: Order '%s'(%s) is ready and expires in %d(s)", orderReq.Name, orderReq.ID, shelfItem.MaxLifeTimeS)
+				storageService.Process(shelfItem)
 
 				// Send order dispatch event
 				zap.S().Infof("Kitchen: Order '%s'(%s) is ready for dispatch at %s", orderReq.Name, orderReq.ID, time.Now())

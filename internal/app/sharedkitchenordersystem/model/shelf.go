@@ -1,10 +1,20 @@
 package model
 
+import (
+	"time"
+)
+
 type ShelfCapacity struct {
 	Hot    int
 	Cold   int
 	Frozen int
 	Any    int
+}
+
+type ShelfItem struct {
+	Order        Order
+	CreatedTime  time.Time
+	MaxLifeTimeS int64
 }
 
 func InitShelvesWithCapacity() ShelfCapacity {

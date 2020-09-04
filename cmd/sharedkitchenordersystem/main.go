@@ -18,7 +18,7 @@ func main() {
 	zap.S().Info("Starting main method")
 
 	var noOfOrdersToRead int
-	flag.IntVar(&noOfOrdersToRead, "noOfOrdersToRead", 2, "Orders receive rate")
+	flag.IntVar(&noOfOrdersToRead, "noOfOrdersToRead", 1, "Orders receive rate")
 	flag.Parse()
 
 	// Start application
