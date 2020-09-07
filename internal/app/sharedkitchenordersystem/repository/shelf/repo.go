@@ -38,8 +38,12 @@ func (pq *PriorityQueue) Push(x interface{}) {
 }
 
 func (pq *PriorityQueue) Pop() interface{} {
+
 	old := *pq
 	n := len(old)
+	if n == 0 {
+		return nil
+	}
 	item := old[n-1]
 	old[n-1] = nil  // avoid memory leak
 	item.index = -1 // for safety
@@ -66,11 +70,39 @@ func (pq *PriorityQueue) update(item *Item, value model.ShelfItem, priority int6
 	heap.Fix(pq, item.index)
 }
 
-var Sorter PriorityQueue
-var Rack map[string]*Item
-var ShelfLocker sync.Mutex
+type Shelf struct {
+	Sorter      PriorityQueue
+	Rack        map[string]*Item
+	ShelfLocker sync.Mutex
+}
+
+var HotShelf Shelf
+var ColdShelf Shelf
+var FrozenShelf Shelf
+var OverflowShelf map[string]*Shelf
 
 func Initialize() {
-	Sorter = make(PriorityQueue, 0)
-	Rack = make(map[string]*Item)
+	HotShelf = Shelf{
+		Sorter: make(PriorityQueue, 0),
+		Rack:   make(map[string]*Item),
+	}
+
+	ColdShelf = Shelf{
+		Sorter: make(PriorityQueue, 0),
+		Rack:   make(map[string]*Item),
+	}
+
+	FrozenShelf = Shelf{
+		Sorter: make(PriorityQueue, 0),
+		Rack:   make(map[string]*Item),
+	}
+
+	OverflowShelf = make(map[string]*Shelf, 0)
+
+	for _, temp := range []string{model.HOT, model.COLD, model.FROZEN} {
+		OverflowShelf[temp] = &Shelf{
+			Sorter: make(PriorityQueue, 0),
+			Rack:   make(map[string]*Item),
+		}
+	}
 }

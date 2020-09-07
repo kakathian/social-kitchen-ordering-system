@@ -4,6 +4,11 @@ import (
 	"time"
 )
 
+const HOT string = "hot"
+const COLD string = "cold"
+const FROZEN string = "frozen"
+const OVERFLOW string = "overflow"
+
 type ShelfCapacity struct {
 	Hot    int
 	Cold   int
@@ -19,10 +24,10 @@ type ShelfItem struct {
 
 func InitShelvesWithCapacity() ShelfCapacity {
 	return ShelfCapacity{
-		Hot:    10,
-		Cold:   10,
-		Frozen: 10,
-		Any:    15,
+		Hot:    1,
+		Cold:   1,
+		Frozen: 1,
+		Any:    1,
 	}
 }
 
