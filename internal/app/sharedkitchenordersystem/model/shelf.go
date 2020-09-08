@@ -24,10 +24,10 @@ type ShelfItem struct {
 
 func InitShelvesWithCapacity() ShelfCapacity {
 	return ShelfCapacity{
-		Hot:    1,
-		Cold:   1,
-		Frozen: 1,
-		Any:    1,
+		Hot:    10,
+		Cold:   10,
+		Frozen: 10,
+		Any:    15,
 	}
 }
 

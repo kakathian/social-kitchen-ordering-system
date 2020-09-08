@@ -8,6 +8,7 @@ import (
 	dispatchService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/dispatch"
 	kitchenService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/kitchen"
 	storageService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/storage"
+	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/supervisor"
 	"time"
 
 	"go.uber.org/zap"
@@ -19,6 +20,8 @@ func Start(noOfOrdersToRead int) {
 	order.InitOrders()
 
 	// start services
+	supervisor.Start(noOfOrdersToRead)
+
 	dispatchService.Start(noOfOrdersToRead)
 	storageService.Start(noOfOrdersToRead)
 	kitchenService.Start(noOfOrdersToRead)
@@ -45,14 +48,13 @@ func Start(noOfOrdersToRead int) {
 
 		zap.S().Info("Admin: No more receiving Orders; kitchen closed")
 		zap.S().Info("===============================================")
-		zap.S().Info("Admin: Shutting down kitchen")
 
 		// stop services
 		//dispatchService.Stop()
 		//storageService.Stop()
 		//kitchenService.Stop()
 
-		//close(orderReaderChannel)
+		close(orderReaderChannel)
 	}(order.OrdersData)
 
 	for {
@@ -62,12 +64,16 @@ func Start(noOfOrdersToRead int) {
 				orderReaderChannel = nil
 				break
 			}
+
 			zap.S().Infof("Admin: Order '%s'(%s) is being sent to kitchen at %s", orderReq.Name, orderReq.ID, time.Now())
-			kitchenService.Process(orderReq)
+			supervisor.KitchenChannel <- orderReq
 		}
 
 		if orderReaderChannel == nil {
 			break
 		}
 	}
+
+	time.Sleep(10 * time.Second)
+	supervisor.Report.GenerateReport()
 }

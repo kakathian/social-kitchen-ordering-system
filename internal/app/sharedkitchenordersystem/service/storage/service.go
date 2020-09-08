@@ -3,6 +3,7 @@ package storage
 import (
 	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/model"
 	repo "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/repository/shelf"
+	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/supervisor"
 	"sharedkitchenordersystem/internal/pkg"
 	"strings"
 	"time"
@@ -10,23 +11,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// ProcessOrders .
-var storageChannel chan model.ShelfItem = nil
-var NewSpaceAvailableChannel chan string = nil
-var OverflownChannel chan model.ShelfItem = nil
-
 func Start(noOfOrdersToRead int) {
-	storageChannel = make(chan model.ShelfItem, noOfOrdersToRead)
-	NewSpaceAvailableChannel = make(chan string, noOfOrdersToRead)
-	OverflownChannel = make(chan model.ShelfItem, noOfOrdersToRead)
 	repo.Initialize()
 	internalProcess()
-}
-
-func Process(shelfItem model.ShelfItem) {
-	// process order storage request
-	zap.S().Infof("Storage: Order '%s' (%s) getting stored", shelfItem.Order.Name, shelfItem.Order.ID)
-	storageChannel <- shelfItem
 }
 
 func internalProcess() {
@@ -38,17 +25,19 @@ func internalProcess() {
 	go func() {
 		for {
 			select {
-			case shelfItem, isOpen := <-storageChannel:
+			case shelfItem, isOpen := <-supervisor.StorageChannel:
 				if !isOpen {
-					storageChannel = nil
+					supervisor.StorageChannel = nil
 					break
 				}
+				zap.S().Infof("Storage: Order '%s' (%s) getting stored", shelfItem.Order.Name, shelfItem.Order.ID)
+
 				storeItem(shelfItem)
 				// Send order stored event
 				zap.S().Infof("Storage: Order '%s'(%s) is stored at %s", shelfItem.Order.Name, shelfItem.Order.ID, time.Now())
 			}
 
-			if storageChannel == nil {
+			if supervisor.StorageChannel == nil {
 				break
 			}
 		}
@@ -56,41 +45,32 @@ func internalProcess() {
 }
 
 func storeItem(shelfItem model.ShelfItem) {
-	var shelf *repo.Shelf
+	var shelf repo.IShelf
 	var capacity int
 	var currentLen int
 
 	if strings.EqualFold(shelfItem.Order.Temp, model.HOT) {
-		shelf = &repo.HotShelf
+		shelf = repo.HotShelf
 		capacity = model.ShelvesCapacity.Hot
 	} else if strings.EqualFold(shelfItem.Order.Temp, model.COLD) {
-		shelf = &repo.ColdShelf
+		shelf = repo.ColdShelf
 		capacity = model.ShelvesCapacity.Cold
 	} else if strings.EqualFold(shelfItem.Order.Temp, model.FROZEN) {
-		shelf = &repo.FrozenShelf
+		shelf = repo.FrozenShelf
 		capacity = model.ShelvesCapacity.Frozen
 	}
 
-	shelf.ShelfLocker.Lock()
-	currentLen = shelf.Sorter.Len()
-	shelf.ShelfLocker.Unlock()
+	currentLen = shelf.Size()
 
 	if currentLen >= capacity {
 		zap.S().Infof("Storage: Reached %s shelf capacity: Raise overflown event for Order '%s'(%s)", shelfItem.Order.Temp, shelfItem.Order.Name, shelfItem.Order.ID)
 
 		// Raise overflow event
-		OverflownChannel <- shelfItem
+		supervisor.OverflownChannel <- shelfItem
 		return
 	}
 
-	sorterItem := &repo.Item{Value: shelfItem, Priority: shelfItem.MaxLifeTimeS}
-
-	shelf.ShelfLocker.Lock()
-
-	shelf.Sorter.Push(sorterItem)
-	shelf.Rack[shelfItem.Order.ID] = sorterItem
-
-	shelf.ShelfLocker.Unlock()
+	shelf.Push(shelfItem)
 }
 
 // TODO: Refactor - reuse the other remove method
@@ -98,80 +78,100 @@ func collectOverflownShelveExpiredOrders() {
 	for {
 		// Remove overflown shelf expired orders
 		for _, overflowCompartment := range repo.OverflowShelf {
-			overflowCompartment.ShelfLocker.Lock()
-			checkAndRemoveOverflownExpiredOrders(overflowCompartment, repo.HotShelf.Sorter.Peek())
-			overflowCompartment.ShelfLocker.Unlock()
+			item, err := overflowCompartment.Peek()
+
+			if err != nil {
+				continue
+			}
+
+			checkAndRemoveOverflownExpiredOrders(overflowCompartment, item)
 		}
 		time.Sleep(time.Second)
+
+		if isStop() {
+			// Gracefully exit by giving one second before exiting
+			time.Sleep(time.Second)
+		}
 	}
 }
 
-func checkAndRemoveOverflownExpiredOrders(shelf *repo.Shelf, item interface{}) {
-	if item == nil {
+func checkAndRemoveOverflownExpiredOrders(shelf repo.IShelf, shelfItem model.ShelfItem) {
+	if shelfItem == (model.ShelfItem{}) {
 		return
 	}
 
-	for item != nil {
-		sItem := (item.(*repo.Item)).Value
-		if int64(time.Now().Sub(sItem.CreatedTime).Seconds())-sItem.MaxLifeTimeS >= 0 {
-			shelf.Sorter.Pop()
-			zap.S().Infof("Storage: Total number of items in shelf '%d' at %s", shelf.Sorter.Len(), time.Now())
-			delete(shelf.Rack, sItem.Order.ID)
+	var err error = nil
+	for shelfItem != (model.ShelfItem{}) && err == nil {
+		if int64(time.Now().Sub(shelfItem.CreatedTime).Seconds())-shelfItem.MaxLifeTimeS >= 0 {
+			shelf.Pop()
+
+			// Send OrderStatus event
+			supervisor.SupervisorChannel <- model.OrderStatus{OrderId: shelfItem.Order.ID, Status: model.ORDER_EXPIRED}
+
+			zap.S().Infof("Storage: Order '%s'(%s) expired and removed from overflown shelf", shelfItem.Order.ID, shelfItem.Order.Name)
+			zap.S().Infof("Storage: Total number of items in overflow shelf '%d' at %s", shelf.Size(), time.Now())
 		} else {
 			break
 		}
 
-		item = shelf.Sorter.Peek()
+		shelfItem, err = shelf.Peek()
 	}
 }
 
 func collectTempControlledShelvesExpiredOrders() {
 	for {
-		// Remove expired orders
 
+		// Remove expired orders
 		// HotShelf
-		repo.HotShelf.ShelfLocker.Lock()
-		hotShelftem := repo.HotShelf.Sorter.Peek()
-		removeOrders(&repo.HotShelf, hotShelftem)
-		repo.HotShelf.ShelfLocker.Unlock()
-		time.Sleep(time.Second)
+		hotShelftem, err := repo.HotShelf.Peek()
+		if err == nil {
+			removeOrders(repo.HotShelf, hotShelftem)
+		}
 
 		// ColdShelf
-		repo.ColdShelf.ShelfLocker.Lock()
-		coldShelfitem := repo.ColdShelf.Sorter.Peek()
-		removeOrders(&repo.ColdShelf, coldShelfitem)
-		repo.ColdShelf.ShelfLocker.Unlock()
-		time.Sleep(time.Second)
+		coldShelfitem, err := repo.ColdShelf.Peek()
+		if err == nil {
+			removeOrders(repo.ColdShelf, coldShelfitem)
+		}
 
 		// FrozenShelf
-		repo.FrozenShelf.ShelfLocker.Lock()
-		frozenShelfitem := repo.FrozenShelf.Sorter.Peek()
-		removeOrders(&repo.FrozenShelf, frozenShelfitem)
-		repo.FrozenShelf.ShelfLocker.Unlock()
+		frozenShelfitem, err := repo.FrozenShelf.Peek()
+		if err == nil {
+			removeOrders(repo.FrozenShelf, frozenShelfitem)
+		}
+
 		time.Sleep(time.Second)
+
+		if isStop() {
+			// Gracefully exit by giving one second before exiting
+			time.Sleep(time.Second)
+		}
 	}
 }
 
-func removeOrders(shelf *repo.Shelf, item interface{}) {
-	if item == nil {
+func removeOrders(shelf repo.IShelf, shelfItem model.ShelfItem) {
+	if shelfItem == (model.ShelfItem{}) {
 		return
 	}
 
-	for item != nil {
-		sItem := (item.(*repo.Item)).Value
-		if int64(time.Now().Sub(sItem.CreatedTime).Seconds())-sItem.MaxLifeTimeS >= 0 {
-			shelf.Sorter.Pop()
-			zap.S().Infof("Storage: Order '%s'(%s) expired and removed", sItem.Order.ID, sItem.Order.Name)
-			delete(shelf.Rack, sItem.Order.ID)
+	var err error = nil
 
-			// Fire event - SpaceAvailable
-			NewSpaceAvailableChannel <- sItem.Order.Temp
-			zap.S().Infof("Storage: New space available in shelf for '%s' at %s", sItem.Order.Temp, time.Now())
+	for shelfItem != (model.ShelfItem{}) && err == nil {
+		if int64(time.Now().Sub(shelfItem.CreatedTime).Seconds())-shelfItem.MaxLifeTimeS >= 0 {
+			shelf.Pop()
+			zap.S().Infof("Storage: Order '%s'(%s) expired and removed", shelfItem.Order.ID, shelfItem.Order.Name)
+
+			// Send OrderStatus event
+			supervisor.SupervisorChannel <- model.OrderStatus{OrderId: shelfItem.Order.ID, Status: model.ORDER_EXPIRED}
+
+			// Fire event - NewSpaceAvailable
+			supervisor.NewSpaceAvailableChannel <- shelfItem.Order.Temp
+			zap.S().Infof("Storage: New space available in shelf for '%s' at %s", shelfItem.Order.Temp, time.Now())
 		} else {
 			break
 		}
 
-		item = shelf.Sorter.Peek()
+		shelfItem, err = shelf.Peek()
 	}
 }
 
@@ -180,9 +180,9 @@ func removeOrders(shelf *repo.Shelf, item interface{}) {
 func processSpaceOverflownEvents() {
 	for {
 		select {
-		case overflownShelfItem, isOpen := <-OverflownChannel:
+		case overflownShelfItem, isOpen := <-supervisor.OverflownChannel:
 			if !isOpen {
-				OverflownChannel = nil
+				supervisor.OverflownChannel = nil
 				break
 			}
 
@@ -192,9 +192,7 @@ func processSpaceOverflownEvents() {
 			var overflowShelfCurrentSize int = 0
 			// Get size of all compartments together (total size is overflow shelf size)
 			for _, compartment := range repo.OverflowShelf {
-				compartment.ShelfLocker.Lock()
-				overflowShelfCurrentSize += compartment.Sorter.Len()
-				compartment.ShelfLocker.Unlock()
+				overflowShelfCurrentSize += compartment.Size()
 			}
 
 			// Calculate max order age for overflow shelf
@@ -203,6 +201,9 @@ func processSpaceOverflownEvents() {
 
 			// Check if the order is not expired, if so discard it or else store
 			if currentOrderAge >= maxAgeForOverflowShelf {
+				// Send OrderStatus event
+				supervisor.SupervisorChannel <- model.OrderStatus{OrderId: overflownShelfItem.Order.ID, Status: model.ORDER_EXPIRED}
+
 				zap.S().Infof("Storage: Overflow shelf marked order '%s'(%s) as trash because it is expired. Expected below %d(s) but was %d(s)", overflownShelfItem.Order.Name, overflownShelfItem.Order.ID, maxAgeForOverflowShelf, currentOrderAge)
 				continue
 			}
@@ -210,42 +211,23 @@ func processSpaceOverflownEvents() {
 			// Check if overflow reached its max max capacity. If so, remove a random order and make some space available for incoming item
 			if overflowShelfCurrentSize >= model.ShelvesCapacity.Any {
 				zap.S().Infof("Storage: Overflow shelf reached its max size, removing random shelf item")
-				overflownShelf.ShelfLocker.Lock()
 
-				// Get random map key - go does not gurantee order of a map, so the order itself is random by default
-				var randomOrderID string = ""
+				randomItem, err := overflownShelf.GetRandomItem()
 
-				for id, _ := range overflownShelf.Rack {
-					randomOrderID = id
-					break
-				}
+				if err == nil {
+					overflownShelf.Delete(randomItem.Order.ID)
+					zap.S().Infof("Storage: Overflow shelf removed random element: Order '%s'(%s)", randomItem.Order.ID, randomItem.Order.Name)
 
-				if randomOrderID != "" {
-					randomItem := overflownShelf.Rack[randomOrderID]
-					randomOrderName := randomItem.Value.Order.Name
-
-					overflownShelf.Sorter.Delete(randomItem)
-					delete(overflownShelf.Rack, randomOrderID)
-					zap.S().Infof("Storage: Overflow shelf removed random element: Order '%s'(%s)", randomOrderID, randomOrderName)
-
-					randomItem = nil
-					overflownShelf.ShelfLocker.Unlock()
+					// Send OrderStatus event
+					supervisor.SupervisorChannel <- model.OrderStatus{OrderId: randomItem.Order.ID, Status: model.ORDER_EVICTED}
 				}
 			}
 
-			item := &repo.Item{
-				Value:    overflownShelfItem,
-				Priority: maxAgeForOverflowShelf - currentOrderAge,
-			}
-
-			overflownShelf.ShelfLocker.Lock()
-			overflownShelf.Sorter.Push(item)
-			overflownShelf.Rack[overflownShelfItem.Order.ID] = item
-
-			overflownShelf.ShelfLocker.Unlock()
-
+			// Update max age for overflown shelf
+			overflownShelfItem.MaxLifeTimeS = currentOrderAge - maxAgeForOverflowShelf
+			overflownShelf.Push(overflownShelfItem)
 		}
-		if OverflownChannel == nil {
+		if supervisor.OverflownChannel == nil {
 			break
 		}
 	}
@@ -254,47 +236,43 @@ func processSpaceOverflownEvents() {
 func processNewShelfSpaceAvailable() {
 	for {
 		select {
-		case newShelfSpaceTempType, isOpen := <-NewSpaceAvailableChannel:
-			if !isOpen {
-				NewSpaceAvailableChannel = nil
+		case newShelfSpaceTempType, more := <-supervisor.NewSpaceAvailableChannel:
+			if !more {
+				supervisor.NewSpaceAvailableChannel = nil
 				break
 			}
 			// Send order stored event
 			zap.S().Infof("Storage: Overflow cabin received new shelf space available for %s temp", newShelfSpaceTempType)
 
 			// On new shelf space available, promote an item from overflow shelf to corresponding shelf with that temperature
-			var shelf *repo.Shelf = repo.OverflowShelf[strings.ToLower(newShelfSpaceTempType)]
-			shelf.ShelfLocker.Lock()
-			item := shelf.Sorter.Pop()
+			var shelf repo.IShelf = repo.OverflowShelf[strings.ToLower(newShelfSpaceTempType)]
+			item, err := shelf.Pop()
 
-			if item != nil {
-				sItem := (item.(*repo.Item)).Value
-				delete(shelf.Rack, sItem.Order.ID)
-				// TODO: Read constant factor for overflow shelf
+			if err == nil {
 				// Check if this item is already expired before moving to main shelf
-				/*maxAge := pkg.CalculateMaxAge(sItem.Order.ShelfLife, sItem.Order.DecayRate, 1)
-				if int64(time.Now().Sub(sItem.CreatedTime).Seconds())-maxAge >= 0 {
-					zap.S().Infof("Storage: Order '%s' (%s) expired before moving to main shelf from overflow cabin", sItem.Order.Name, sItem.Order.ID)
-					shelf.Sorter.Pop()
-					delete(shelf.Rack, sItem.Order.ID)
+				maxAgeForNormalShelves := pkg.CalculateMaxAge(item.Order.ShelfLife, item.Order.DecayRate, 1)
+				currentAge := int64(time.Now().Sub(item.CreatedTime).Seconds())
+				if currentAge-maxAgeForNormalShelves >= 0 {
+					zap.S().Infof("Storage: Order '%s' (%s) expired before moving to main shelf from overflow cabin", item.Order.Name, item.Order.ID)
+					// Send OrderStatus event
+					supervisor.SupervisorChannel <- model.OrderStatus{OrderId: item.Order.ID, Status: model.ORDER_EVICTED}
 					return
-				}*/
+				}
 
 				// Send StoreOrder event
-				zap.S().Infof("Storage: Order '%s' (%s) removed from overflow and sent to store on normal temp shelf", sItem.Order.Name, sItem.Order.ID)
-				Process(sItem)
-				zap.S().Infof("Storage: Total number of items in shelf '%d' at %s", shelf.Sorter.Len(), time.Now())
+				zap.S().Infof("Storage: Order '%s' (%s) removed from overflow and sent to store on normal temp shelf", item.Order.Name, item.Order.ID)
+				item.MaxLifeTimeS = currentAge - maxAgeForNormalShelves
+				supervisor.StorageChannel <- item
+				zap.S().Infof("Storage: Total number of items in shelf '%d' at %s", shelf.Size(), time.Now())
 			}
-
-			shelf.ShelfLocker.Unlock()
 		}
 
-		if NewSpaceAvailableChannel == nil {
+		if supervisor.NewSpaceAvailableChannel == nil {
 			break
 		}
 	}
 }
 
-func Stop() {
-	close(storageChannel)
+func isStop() bool {
+	return supervisor.StorageChannel == nil && supervisor.NewSpaceAvailableChannel == nil && supervisor.OverflownChannel == nil
 }

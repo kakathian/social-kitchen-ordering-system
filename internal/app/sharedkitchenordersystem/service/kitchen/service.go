@@ -2,36 +2,32 @@ package kitchen
 
 import (
 	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/model"
-	dispatchService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/dispatch"
-	storageService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/storage"
+	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/supervisor"
 	"sharedkitchenordersystem/internal/pkg"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-var kitchenChannel chan model.Order = nil
-
 func Start(noOfOrdersToRead int) {
-	kitchenChannel = make(chan model.Order, noOfOrdersToRead)
 	internalProcess()
-}
-
-func Process(orderReq model.Order) {
-	// process order
-	zap.S().Infof("Kitchen: Order '%s' (%s) getting processed", orderReq.Name, orderReq.ID)
-	kitchenChannel <- orderReq
 }
 
 func internalProcess() {
 	go func() {
 		for {
 			select {
-			case orderReq, isOpen := <-kitchenChannel:
-				if !isOpen {
-					kitchenChannel = nil
+			case orderReq, more := <-supervisor.KitchenChannel:
+				if !more {
+					supervisor.KitchenChannel = nil
 					break
 				}
+
+				zap.S().Infof("Kitchen: Order '%s' (%s) getting processed", orderReq.Name, orderReq.ID)
+
+				// Send order status event
+				supervisor.SupervisorChannel <- model.OrderStatus{OrderId: orderReq.ID, Status: model.ORDER_RECEIVED}
+
 				// Send order ready event
 				shelfItem := model.ShelfItem{
 					Order:        orderReq,
@@ -39,20 +35,22 @@ func internalProcess() {
 					MaxLifeTimeS: pkg.CalculateMaxAge(orderReq.ShelfLife, orderReq.DecayRate, 1), // assume 1 for now, then change dynamically later
 				}
 				zap.S().Infof("Kitchen: Order '%s'(%s) is ready and expires in %d(s)", orderReq.Name, orderReq.ID, shelfItem.MaxLifeTimeS)
-				storageService.Process(shelfItem)
 
-				// Send order dispatch event
-				zap.S().Infof("Kitchen: Order '%s'(%s) is ready for dispatch at %s", orderReq.Name, orderReq.ID, time.Now())
-				dispatchService.Process(orderReq)
+				// Send OrderStatus event
+				supervisor.SupervisorChannel <- model.OrderStatus{OrderId: orderReq.ID, Status: model.ORDER_PROCESSED}
+
+				// Send StoreOrder event
+				zap.S().Infof("Kitchen: Order '%s' (%s) sent to Storage to get stored", shelfItem.Order.Name, shelfItem.Order.ID)
+				supervisor.StorageChannel <- shelfItem
+
+				// Send InitiateDispatcher event
+				zap.S().Infof("Kitchen: Order '%s'(%s) is ready for dispatch and sent to Dispatch at %s", orderReq.Name, orderReq.ID, time.Now())
+				supervisor.DispatchChannel <- orderReq
 			}
 
-			if kitchenChannel == nil {
+			if supervisor.KitchenChannel == nil {
 				break
 			}
 		}
 	}()
-}
-
-func Stop() {
-	close(kitchenChannel)
 }
