@@ -3,6 +3,7 @@ package supervisor
 import (
 	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/model"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -22,6 +23,9 @@ var OverflownChannel chan model.ShelfItem = nil
 var DispatchWaitGroup sync.WaitGroup
 
 var Report *ReportBook
+
+var lastActivityReportedTime time.Time = time.Now()
+var lastActivityHealthCheckedTime time.Time = time.Now()
 
 type ReportBook struct {
 	index  map[string]model.OrderStatus
@@ -142,6 +146,9 @@ func process() {
 
 				Report.push(reportMsg)
 				zap.S().Infof("Supervisor: Order '%s' is reported to supervisor with status %s", reportMsg.OrderId, reportMsg.Status)
+				lastActivityReportedTime = time.Now()
+			default:
+				handleNoMsgReceived()
 			}
 
 			if SupervisorChannel == nil {
@@ -151,6 +158,21 @@ func process() {
 	}()
 }
 
-func WaitForAll() {
+func handleNoMsgReceived() {
+	idealTimeS := 10.0
+	now := time.Now()
+	if now.Sub(lastActivityReportedTime).Seconds() >= idealTimeS && now.Sub(lastActivityHealthCheckedTime).Seconds() >= idealTimeS {
+		zap.S().Infof("---Supervisor: No orders received for more than %.0f(s). Press 'Ctrl + C' to terminate---", idealTimeS)
+		lastActivityHealthCheckedTime = now
+	}
+}
 
+func CloseAll() {
+	close(SupervisorChannel)
+	close(KitchenChannel)
+	close(DispatchChannel)
+	close(StorageChannel)
+	close(NewSpaceAvailableChannel)
+	close(OverflownChannel)
+	Report = nil
 }

@@ -102,13 +102,14 @@ func checkAndRemoveOverflownExpiredOrders(shelf repo.IShelf, shelfItem model.She
 
 	var err error = nil
 	for shelfItem != (model.ShelfItem{}) && err == nil {
-		if int64(time.Now().Sub(shelfItem.CreatedTime).Seconds())-shelfItem.MaxLifeTimeS >= 0 {
+		currAge := int64(time.Now().Sub(shelfItem.CreatedTime).Seconds())
+		if currAge-shelfItem.MaxLifeTimeS >= 0 {
 			shelf.Pop()
 
 			// Send OrderStatus event
 			supervisor.SupervisorChannel <- model.OrderStatus{OrderId: shelfItem.Order.ID, Status: model.ORDER_EXPIRED}
 
-			zap.S().Infof("Storage: Order '%s'(%s) expired and removed from overflown shelf", shelfItem.Order.ID, shelfItem.Order.Name)
+			zap.S().Infof("Storage: Order '%s'(%s) expired and removed; current age %s(s), max allowed age %s(s)", shelfItem.Order.ID, shelfItem.Order.Name, currAge, shelfItem.MaxLifeTimeS)
 			zap.S().Infof("Storage: Total number of items in overflow shelf '%d' at %s", shelf.Size(), time.Now())
 		} else {
 			break
@@ -157,9 +158,10 @@ func removeOrders(shelf repo.IShelf, shelfItem model.ShelfItem) {
 	var err error = nil
 
 	for shelfItem != (model.ShelfItem{}) && err == nil {
-		if int64(time.Now().Sub(shelfItem.CreatedTime).Seconds())-shelfItem.MaxLifeTimeS >= 0 {
+		currAge := int64(time.Now().Sub(shelfItem.CreatedTime).Seconds())
+		if currAge-shelfItem.MaxLifeTimeS >= 0 {
 			shelf.Pop()
-			zap.S().Infof("Storage: Order '%s'(%s) expired and removed", shelfItem.Order.ID, shelfItem.Order.Name)
+			zap.S().Infof("Storage: Order '%s'(%s) expired and removed; current age %d(s), max allowed age %d(s)", shelfItem.Order.ID, shelfItem.Order.Name, currAge, shelfItem.MaxLifeTimeS)
 
 			// Send OrderStatus event
 			supervisor.SupervisorChannel <- model.OrderStatus{OrderId: shelfItem.Order.ID, Status: model.ORDER_EXPIRED}
@@ -224,7 +226,7 @@ func processSpaceOverflownEvents() {
 			}
 
 			// Update max age for overflown shelf
-			overflownShelfItem.MaxLifeTimeS = currentOrderAge - maxAgeForOverflowShelf
+			overflownShelfItem.MaxLifeTimeS = maxAgeForOverflowShelf - currentOrderAge
 			overflownShelf.Push(overflownShelfItem)
 		}
 		if supervisor.OverflownChannel == nil {
@@ -261,7 +263,7 @@ func processNewShelfSpaceAvailable() {
 
 				// Send StoreOrder event
 				zap.S().Infof("Storage: Order '%s' (%s) removed from overflow and sent to store on normal temp shelf", item.Order.Name, item.Order.ID)
-				item.MaxLifeTimeS = currentAge - maxAgeForNormalShelves
+				item.MaxLifeTimeS = maxAgeForNormalShelves - currentAge
 				supervisor.StorageChannel <- item
 				zap.S().Infof("Storage: Total number of items in shelf '%d' at %s", shelf.Size(), time.Now())
 			}

@@ -3,12 +3,15 @@ package sharedkitchenordersystem
 import (
 	"fmt"
 	"math"
+	"os"
+	"os/signal"
 	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/model"
 	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/repository/order"
 	dispatchService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/dispatch"
 	kitchenService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/kitchen"
 	storageService "sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/storage"
 	"sharedkitchenordersystem/internal/app/sharedkitchenordersystem/service/supervisor"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,6 +19,9 @@ import (
 
 // Initialize the application.
 func Start(noOfOrdersToRead int) {
+
+	listenToSystemCloseSignal()
+
 	// initliaze repos
 	order.InitOrders()
 
@@ -53,8 +59,7 @@ func Start(noOfOrdersToRead int) {
 		//dispatchService.Stop()
 		//storageService.Stop()
 		//kitchenService.Stop()
-
-		close(orderReaderChannel)
+		// close(orderReaderChannel)
 	}(order.OrdersData)
 
 	for {
@@ -73,7 +78,21 @@ func Start(noOfOrdersToRead int) {
 			break
 		}
 	}
+}
 
-	time.Sleep(10 * time.Second)
-	supervisor.Report.GenerateReport()
+// ListenToSystemCloseSignal listens to OS interrupt signal. Cleans resources and prints orders status report
+func listenToSystemCloseSignal() {
+	appCloseListener := make(chan os.Signal)
+	signal.Notify(appCloseListener, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-appCloseListener
+		zap.S().Infof("Admin: Received termination signal (%s).Printing order status report before closing....", "Ctrl+C")
+		supervisor.Report.GenerateReport()
+		zap.S().Info("Admin: Cleaning resources....")
+		supervisor.CloseAll()
+		zap.S().Info("----------------------Application shutting down----------------------")
+
+		os.Exit(0)
+	}()
 }
