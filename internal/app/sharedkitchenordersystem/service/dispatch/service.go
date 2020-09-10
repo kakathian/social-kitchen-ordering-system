@@ -32,14 +32,11 @@ func internalProcess() {
 				//time.Sleep(6 * time.Second)
 
 				// Courier picking up the order
-				var shelf repo.IShelf
+				shelf, err := repo.ShelfFactory(orderReq.Temp)
 
-				if strings.EqualFold(orderReq.Temp, model.HOT) {
-					shelf = repo.HotShelf
-				} else if strings.EqualFold(orderReq.Temp, model.COLD) {
-					shelf = repo.ColdShelf
-				} else if strings.EqualFold(orderReq.Temp, model.FROZEN) {
-					shelf = repo.FrozenShelf
+				if err != nil {
+					zap.S().Infof("Dispatch: Invalid Order '%s'(%s); ignored unknown order item temperature '%s'", orderReq.ID, orderReq.Name, orderReq.Temp)
+					continue
 				}
 
 				// If item not available in normal racks, check in overflow rack

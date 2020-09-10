@@ -81,12 +81,14 @@ type IShelf interface {
 	IsPresent(itemID string) bool
 	GetRandomItem() (model.ShelfItem, error)
 	Delete(string) error
+	MaxCapacity() int
 }
 
 type Shelf struct {
 	sorter      PriorityQueue
 	rack        map[string]*Item
 	shelfLocker sync.Mutex
+	maxCapacity int
 }
 
 func (shelf *Shelf) Init() {
@@ -172,33 +174,43 @@ func (shelf *Shelf) Delete(shelfItemID string) error {
 	return nil
 }
 
-var HotShelf IShelf
-var ColdShelf IShelf
-var FrozenShelf IShelf
+func (shelf *Shelf) MaxCapacity() int {
+	return shelf.maxCapacity
+}
+
+var hotShelf IShelf
+var coldShelf IShelf
+var frozenShelf IShelf
 var OverflowShelf map[string]IShelf
 
+var shelves map[string]IShelf
+var ShelfTemperatures []string
+
+var ShelvesCapacity map[string]int
+
 func Initialize() {
-	HotShelf = &Shelf{
-		sorter: make(PriorityQueue, 0),
-		rack:   make(map[string]*Item),
+	ShelvesCapacity = map[string]int{
+		model.HOT:      10,
+		model.COLD:     10,
+		model.FROZEN:   10,
+		model.OVERFLOW: 15,
 	}
-	HotShelf.Init()
 
-	ColdShelf = &Shelf{
-		sorter: make(PriorityQueue, 0),
-		rack:   make(map[string]*Item),
-	}
-	ColdShelf.Init()
+	ShelfTemperatures := []string{model.HOT, model.COLD, model.FROZEN}
+	shelves = make(map[string]IShelf)
 
-	FrozenShelf = &Shelf{
-		sorter: make(PriorityQueue, 0),
-		rack:   make(map[string]*Item),
+	for _, shelfType := range ShelfTemperatures {
+		shelves[shelfType] = &Shelf{
+			sorter:      make(PriorityQueue, 0),
+			rack:        make(map[string]*Item),
+			maxCapacity: ShelvesCapacity[shelfType],
+		}
+		shelves[shelfType].Init()
 	}
-	FrozenShelf.Init()
 
 	OverflowShelf = make(map[string]IShelf, 0)
 
-	for _, temp := range []string{model.HOT, model.COLD, model.FROZEN} {
+	for _, temp := range ShelfTemperatures {
 		OverflowShelf[temp] = &Shelf{
 			sorter: make(PriorityQueue, 0),
 			rack:   make(map[string]*Item),
@@ -206,4 +218,12 @@ func Initialize() {
 
 		OverflowShelf[temp].Init()
 	}
+}
+
+func ShelfFactory(shelfTemperature string) (IShelf, error) {
+	if shelf, isPresent := shelves[shelfTemperature]; isPresent {
+		return shelf, nil
+	}
+
+	return nil, errors.New(fmt.Sprintf("Invalid shelfTemperature '%s' ", shelfTemperature))
 }
