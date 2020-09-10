@@ -87,11 +87,6 @@ func collectOverflownShelveExpiredOrders() {
 			checkAndRemoveOverflownExpiredOrders(overflowCompartment, item)
 		}
 		time.Sleep(time.Second)
-
-		if isStop() {
-			// Gracefully exit by giving one second before exiting
-			time.Sleep(time.Second)
-		}
 	}
 }
 
@@ -142,14 +137,11 @@ func collectTempControlledShelvesExpiredOrders() {
 		}
 
 		time.Sleep(time.Second)
-
-		if isStop() {
-			// Gracefully exit by giving one second before exiting
-			time.Sleep(time.Second)
-		}
 	}
 }
 
+// removeOrders Removes the order with lowest priority which is available at root of priorityqueue (priority - order age)
+// The order which ages soon or already aged would be at top of the tree
 func removeOrders(shelf repo.IShelf, shelfItem model.ShelfItem) {
 	if shelfItem == (model.ShelfItem{}) {
 		return
@@ -273,8 +265,4 @@ func processNewShelfSpaceAvailable() {
 			break
 		}
 	}
-}
-
-func isStop() bool {
-	return supervisor.StorageChannel == nil && supervisor.NewSpaceAvailableChannel == nil && supervisor.OverflownChannel == nil
 }

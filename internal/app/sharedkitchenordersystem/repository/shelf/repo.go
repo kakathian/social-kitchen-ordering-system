@@ -73,6 +73,7 @@ func (pq *PriorityQueue) update(item *Item, value model.ShelfItem, priority int6
 }
 
 type IShelf interface {
+	Init()
 	Push(model.ShelfItem)
 	Pop() (model.ShelfItem, error)
 	Size() int
@@ -88,6 +89,10 @@ type Shelf struct {
 	shelfLocker sync.Mutex
 }
 
+func (shelf *Shelf) Init() {
+	heap.Init(&shelf.sorter)
+}
+
 func (shelf *Shelf) Size() int {
 	shelf.shelfLocker.Lock()
 	defer shelf.shelfLocker.Unlock()
@@ -98,7 +103,7 @@ func (shelf *Shelf) Size() int {
 func (shelf *Shelf) Push(shelfItem model.ShelfItem) {
 	shelf.shelfLocker.Lock()
 	item := &Item{Value: shelfItem, Priority: shelfItem.MaxLifeTimeS}
-	shelf.sorter.Push(item)
+	heap.Push(&shelf.sorter, item)
 	shelf.rack[shelfItem.Order.ID] = item
 	shelf.shelfLocker.Unlock()
 }
@@ -107,11 +112,11 @@ func (shelf *Shelf) Pop() (model.ShelfItem, error) {
 	shelf.shelfLocker.Lock()
 	defer shelf.shelfLocker.Unlock()
 
-	item := shelf.sorter.Pop()
-
-	if item == nil {
+	if shelf.sorter.Len() == 0 {
 		return (model.ShelfItem{}), errors.New("No items available to pop, shelf is empty!")
 	}
+
+	item := heap.Pop(&shelf.sorter)
 
 	shelfItem := (item.(*Item)).Value
 	delete(shelf.rack, shelfItem.Order.ID)
@@ -177,16 +182,19 @@ func Initialize() {
 		sorter: make(PriorityQueue, 0),
 		rack:   make(map[string]*Item),
 	}
+	HotShelf.Init()
 
 	ColdShelf = &Shelf{
 		sorter: make(PriorityQueue, 0),
 		rack:   make(map[string]*Item),
 	}
+	ColdShelf.Init()
 
 	FrozenShelf = &Shelf{
 		sorter: make(PriorityQueue, 0),
 		rack:   make(map[string]*Item),
 	}
+	FrozenShelf.Init()
 
 	OverflowShelf = make(map[string]IShelf, 0)
 
@@ -195,5 +203,7 @@ func Initialize() {
 			sorter: make(PriorityQueue, 0),
 			rack:   make(map[string]*Item),
 		}
+
+		OverflowShelf[temp].Init()
 	}
 }

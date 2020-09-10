@@ -10,7 +10,7 @@ import (
 
 var SupervisorChannel chan model.OrderStatus
 
-var KitchenChannel chan model.Order = nil
+var KitchenChannel chan []model.Order = nil
 
 var DispatchChannel chan model.Order = nil
 
@@ -29,7 +29,7 @@ var lastActivityHealthCheckedTime time.Time = time.Now()
 
 type ReportBook struct {
 	index  map[string]model.OrderStatus
-	status map[string][]model.OrderStatus
+	status map[string]map[string]bool
 	locker sync.Mutex
 }
 
@@ -60,9 +60,9 @@ func (r *ReportBook) push(order model.OrderStatus) {
 
 	// Maintain record of orders by status
 	if r.status[order.Status] == nil {
-		r.status[order.Status] = make([]model.OrderStatus, 0)
+		r.status[order.Status] = make(map[string]bool, 0)
 	}
-	r.status[order.Status] = append(r.status[order.Status], order)
+	r.status[order.Status][order.OrderId] = true
 }
 
 func (r *ReportBook) GenerateReport() {
@@ -120,7 +120,7 @@ func (r *ReportBook) GenerateReport() {
 func Start(noOfOrdersToRead int) {
 	SupervisorChannel = make(chan model.OrderStatus, noOfOrdersToRead)
 
-	KitchenChannel = make(chan model.Order, noOfOrdersToRead)
+	KitchenChannel = make(chan []model.Order, noOfOrdersToRead)
 	DispatchChannel = make(chan model.Order, noOfOrdersToRead)
 	StorageChannel = make(chan model.ShelfItem, noOfOrdersToRead)
 
@@ -129,7 +129,7 @@ func Start(noOfOrdersToRead int) {
 
 	Report = &ReportBook{
 		index:  make(map[string]model.OrderStatus),
-		status: make(map[string][]model.OrderStatus),
+		status: make(map[string]map[string]bool),
 	}
 	process()
 }
