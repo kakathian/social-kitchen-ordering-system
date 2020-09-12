@@ -9,10 +9,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// Start starts the kitchen service
 func Start(noOfOrdersToRead int) {
 	internalProcess()
 }
 
+// internalProcess reads and processes the event messages from Kitchen Channel queue
 func internalProcess() {
 	go func() {
 		for {

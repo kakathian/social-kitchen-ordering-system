@@ -117,6 +117,7 @@ func (r *ReportBook) GenerateReport() {
 	zap.S().Infof("===============End Report===============")
 }
 
+// Start instantiates channels for Kicthen ,Dispatch, Storage, Supervisor, NewSpaceAvailable and Overflown events
 func Start(noOfOrdersToRead int) {
 	SupervisorChannel = make(chan model.OrderStatus, noOfOrdersToRead)
 
@@ -134,6 +135,7 @@ func Start(noOfOrdersToRead int) {
 	process()
 }
 
+// process processes events fired by mutiple services in different stages of the order processing cycle
 func process() {
 	go func() {
 		for {
@@ -158,6 +160,7 @@ func process() {
 	}()
 }
 
+// handleNoMsgReceived handles when there is no activity noticed across the kitchen
 func handleNoMsgReceived() {
 	idealTimeS := 10.0
 	now := time.Now()
@@ -167,6 +170,7 @@ func handleNoMsgReceived() {
 	}
 }
 
+// Closes all the channels and cleans up the resources
 func CloseAll() {
 	close(SupervisorChannel)
 	close(KitchenChannel)

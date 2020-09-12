@@ -15,10 +15,11 @@ func InitOrders() {
 	_, b, _, _ := runtime.Caller(0)
 
 	err := util.ReadFile(filepath.Dir(b)+"/orders.json", &OrdersData)
-
+	fmt.Println(filepath.Dir(b) + "/orders.json")
 	if err != nil {
 		fmt.Println(err.Error())
+		return
 	}
 
-	fmt.Println(len(OrdersData))
+	fmt.Printf("Orders data read: length is %d", len(OrdersData))
 }

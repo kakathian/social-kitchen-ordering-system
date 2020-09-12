@@ -1,7 +1,6 @@
 package sharedkitchenordersystem
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"os/signal"
@@ -36,7 +35,6 @@ func Start(noOfOrdersToRead int) {
 
 	go func(ordersData []model.Order) {
 
-		fmt.Println("entered")
 		if len(ordersData) == 0 {
 			return
 		}

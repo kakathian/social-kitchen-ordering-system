@@ -13,15 +13,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// Start starts the storage service
 func Start(noOfOrdersToRead int) {
 	repo.Initialize()
 	internalProcess()
 }
 
 func internalProcess() {
+	// Process SpaceOverflown events
 	go processSpaceOverflownEvents()
+
+	// Process newShelfSPaceAvailable events
 	go processNewShelfSpaceAvailable()
+
+	// Spin a worker to check and garbage collect expired orders from normal shelves
 	go collectTempControlledShelvesExpiredOrders()
+
+	// Spin a worker to check and garbage collect expired orders from overflown shelves
 	go collectOverflownShelveExpiredOrders()
 
 	go func() {
@@ -46,6 +54,7 @@ func internalProcess() {
 	}()
 }
 
+// storeItem stores a processed order in the shelf
 func storeItem(shelfItem model.ShelfItem) error {
 	var shelf repo.IShelf
 	var capacity int
@@ -59,6 +68,7 @@ func storeItem(shelfItem model.ShelfItem) error {
 	capacity = shelf.MaxCapacity()
 	currentLen = shelf.Size()
 
+	// If the shelf's max capaacity is reached , send an overflown event and quit
 	if currentLen >= capacity {
 		msg := fmt.Sprintf("Storage: Reached %s shelf capacity: Raise overflown event for Order '%s'(%s)", shelfItem.Order.Temp, shelfItem.Order.Name, shelfItem.Order.ID)
 		zap.S().Infof(msg)
@@ -82,7 +92,7 @@ func storeItem(shelfItem model.ShelfItem) error {
 	return nil
 }
 
-// TODO: Refactor - reuse the other remove method
+// collectOverflownShelveExpiredOrders - worker to  check for expired orders in overflown shelves
 func collectOverflownShelveExpiredOrders() {
 	for {
 		// Remove overflown shelf expired orders
@@ -99,6 +109,7 @@ func collectOverflownShelveExpiredOrders() {
 	}
 }
 
+// collectOverflownShelveExpiredOrders checks and garbage collects expired orders from Overflow shelves
 func checkAndRemoveOverflownExpiredOrders(shelf repo.IShelf, shelfItem model.ShelfItem) {
 	if shelfItem == (model.ShelfItem{}) {
 		return
@@ -123,6 +134,7 @@ func checkAndRemoveOverflownExpiredOrders(shelf repo.IShelf, shelfItem model.She
 	}
 }
 
+// collectTempControlledShelvesExpiredOrders checks and garbage colelcts any expired orsers from tempertaure controlled shelves (normal)
 func collectTempControlledShelvesExpiredOrders() {
 	for {
 
@@ -185,6 +197,7 @@ func processSpaceOverflownEvents() {
 	}
 }
 
+// onSpaceOverflownEventReceived processes spaceOverflownEvent events
 func onSpaceOverflownEventReceived(overflownShelfItem model.ShelfItem) {
 	zap.S().Infof("Storage: Overflow shelf received Order '%s'(%s) to store in overflow shelf", overflownShelfItem.Order.Name, overflownShelfItem.Order.ID)
 
@@ -228,6 +241,7 @@ func onSpaceOverflownEventReceived(overflownShelfItem model.ShelfItem) {
 	overflownShelf.Push(overflownShelfItem)
 }
 
+// processNewShelfSpaceAvailable processes NewShelfSpaceAvailableEvent events usually fired by Normal Shelves worker and Dispatch service
 func processNewShelfSpaceAvailable() {
 	for {
 		select {
@@ -246,6 +260,7 @@ func processNewShelfSpaceAvailable() {
 	}
 }
 
+// onNewShelfSpaceAvailableReceived processes NewShelfSpaceAvailableEvent events usually fired by normal shelves garbage collector
 func onNewShelfSpaceAvailableReceived(newShelfSpaceTempType string) {
 	// Send order stored event
 	zap.S().Infof("Storage: Overflow cabin received new shelf space available for %s temp", newShelfSpaceTempType)

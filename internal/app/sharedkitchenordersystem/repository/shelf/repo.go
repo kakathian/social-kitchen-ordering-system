@@ -15,13 +15,13 @@ type Item struct {
 	index    int             // The index of the item in the heap.
 }
 
-// A PriorityQueue implements heap.Interface and holds Items.
+// PriorityQueue implements heap.Interface and holds Items
 type PriorityQueue []*Item
 
 func (pq PriorityQueue) Len() int { return len(pq) }
 
+// Less helps decide which item needs to Pop; we want the the item with the lowest priority
 func (pq PriorityQueue) Less(i, j int) bool {
-	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
 	return pq[i].Priority < pq[j].Priority
 }
 
@@ -31,6 +31,7 @@ func (pq PriorityQueue) Swap(i, j int) {
 	pq[j].index = j
 }
 
+// Push stores item in the priorityqueue
 func (pq *PriorityQueue) Push(x interface{}) {
 	n := len(*pq)
 	item := x.(*Item)
@@ -38,6 +39,7 @@ func (pq *PriorityQueue) Push(x interface{}) {
 	*pq = append(*pq, item)
 }
 
+// Pop removes the item with lowest priority
 func (pq *PriorityQueue) Pop() interface{} {
 
 	old := *pq
@@ -52,6 +54,7 @@ func (pq *PriorityQueue) Pop() interface{} {
 	return item
 }
 
+// Peek peeks the item with the lowest priority
 func (pq *PriorityQueue) Peek() interface{} {
 	if pq.Len() > 0 {
 		val := *pq
@@ -60,6 +63,7 @@ func (pq *PriorityQueue) Peek() interface{} {
 	return nil
 }
 
+// delete deletes a given item
 func (pq *PriorityQueue) delete(item *Item) {
 	heap.Remove(pq, (*item).index)
 }
@@ -72,14 +76,31 @@ func (pq *PriorityQueue) update(item *Item, value model.ShelfItem, priority int6
 }
 
 type IShelf interface {
+	// Init initializes the priority queue
 	Init()
+
+	// Push pushes and item into th priority queue
 	Push(model.ShelfItem)
+
+	// Pop removes an item with the lowest priority
 	Pop() (model.ShelfItem, error)
+
+	// Size gives the number of items present
 	Size() int
+
+	// Peek peeks the item with the lowest priority
 	Peek() (model.ShelfItem, error)
+
+	// IsPresent checks if an item is present
 	IsPresent(itemID string) bool
+
+	// GetRandomItem gets a randoim item and removes it if present
 	GetRandomItem() (model.ShelfItem, error)
+
+	// Delete removes an item from the shelf
 	Delete(string) error
+
+	// MaxCapacity gives the max number of items the shelf can hold
 	MaxCapacity() int
 }
 

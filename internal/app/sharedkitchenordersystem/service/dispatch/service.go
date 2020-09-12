@@ -11,10 +11,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// Start starts the dispatch service
 func Start(noOfOrdersToRead int) {
 	internalProcess()
 }
 
+// internalProcess processes the messages from the dispatch channel
 func internalProcess() {
 	go func() {
 		for {
