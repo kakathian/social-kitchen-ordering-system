@@ -8,12 +8,11 @@ import (
 	"sync"
 )
 
-// An Item is something we manage in a priority queue.
+// An Item is managed in priority queue
 type Item struct {
 	Value    model.ShelfItem // The value of the item; shelf item.
 	Priority int64           // The priority of the item in the queue.
-	// The index is needed by update and is maintained by the heap.Interface methods.
-	index int // The index of the item in the heap.
+	index    int             // The index of the item in the heap.
 }
 
 // A PriorityQueue implements heap.Interface and holds Items.

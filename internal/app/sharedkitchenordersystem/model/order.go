@@ -1,9 +1,5 @@
 package model
 
-import (
-	"time"
-)
-
 const ORDER_RECEIVED string = "received"
 const ORDER_PROCESSED string = "processed"
 const ORDER_PICKED string = "picked"
@@ -22,17 +18,6 @@ type Order struct {
 	ShelfLife int32 `json:"shelfLife"`
 
 	DecayRate float32 `json:"decayRate"`
-}
-
-// Orders .
-type Orders struct {
-	Orders []Order
-}
-
-// OrderRequest .
-type OrderRequest struct {
-	Order Order
-	Time  time.Time
 }
 
 type OrderStatus struct {
