@@ -6,7 +6,7 @@ This project could be built and launched using either:
  - Docker
  - Direct CLI
 
-## Docker
+## docker
 Docker file is crated with golang as base to be run on linux container
 
 step1: run the following command
@@ -25,7 +25,7 @@ step2: run the following command to launch the application
 
 `noOfOrdersToRead` is the configuration to tell the application that how many orders need to be processed at once by the kitchen. Please note: Give a valid positive integer. If an invalid value is given thge default value set in the application  is used 
 
-## Direct CLI
+## direct CLI
 
 Make sure go is installed in the host machine
 
@@ -45,7 +45,7 @@ Note: The second step performs both build and run, so the first step is just opt
 
 Note: The second step performs both build and run, so the first step is just optional but recommended
 
-## To Stop the application:
+## stop the application:
 
 Press `Ctrl + C` to stop/kill the application. This will generate a status report on orders like percentage of orders processed/received/picked-up/evicted/expired.
 
