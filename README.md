@@ -42,3 +42,10 @@ For example:
 `C:\projects\golang\sharedkitchenordersystem> go run .\cmd\sharedkitchenordersystem\main.go -noOfOrdersToRead=100`
 
 Note: The second step performs both build and run, so the first step is just optional but recommended
+
+Note: The second step performs both build and run, so the first step is just optional but recommended
+
+## To Stop the application:
+
+Press `Ctrl + C` to stop/kill the application. This will generate a status report on orders like percentage of orders processed/received/picked-up/evicted/expired.
+
