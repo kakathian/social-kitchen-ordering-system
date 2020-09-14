@@ -13,6 +13,8 @@ RUN go mod download
 
 COPY . .
 
+ENV noOfOrdersToRead 10
+
 # Unit tests
 # RUN CGO_ENABLED=0 go test -v
 
@@ -23,4 +25,5 @@ RUN go build -o ./out/sharedkitchenordersystem-app cmd/sharedkitchenordersystem/
 EXPOSE 1323
 
 # Run the binary program produced by `go install`
-CMD ["/app/out/sharedkitchenordersystem-app"]
+# CMD ["/app/out/sharedkitchenordersystem-app"]
+CMD ["sh", "-c","/app/out/sharedkitchenordersystem-app -noOfOrdersToRead=${noOfOrdersToRead}"]

@@ -10,12 +10,11 @@ import (
 
 var OrdersData []model.Order
 
+// InitOrders initializes and reads orders data from orders json file
 func InitOrders() {
 	OrdersData = []model.Order{}
 	_, b, _, _ := runtime.Caller(0)
-
 	err := util.ReadFile(filepath.Dir(b)+"/orders.json", &OrdersData)
-	fmt.Println(filepath.Dir(b) + "/orders.json")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
