@@ -1,4 +1,4 @@
-## sharedkitchenordersystem
+## shared kitchen order system
 
 This application is built on golang technologies. The build and launch were done using Docker for easy portability
 
