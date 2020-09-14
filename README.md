@@ -17,7 +17,7 @@ If you wish to bypass docker image cache then run this:
 `docker build --tag sharedkitchendocker --no-cache <project absolute path>\sharedkitchenordersystem`
 
 for example:
- - with cache: `docker build --tag sharedkitchendocker <project absolute path>\sharedkitchenordersystem`
+ - with cache: ` C:\projects\golang\sharedkitchenordersystem> docker build --tag sharedkitchendocker --no-cache C:\projects\golang\sharedkitchenordersystem`
  - with no cache: with no cache` C:\projects\golang\sharedkitchenordersystem> docker build --tag sharedkitchendocker --no-cache C:\projects\golang\sharedkitchenordersystem`
 
 step2: run the following command to launch the application 
