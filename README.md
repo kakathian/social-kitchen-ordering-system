@@ -13,7 +13,7 @@ step1: run the following command
 
 `<project absolute path>\sharedkitchenordersystem:/> docker build --tag sharedkitchendocker --no-cache <project absolute path>\sharedkitchenordersystem`
 
-# for example: ` C:\projects\golang\sharedkitchenordersystem> docker build --tag sharedkitchendocker --no-cache C:\projects\golang\sharedkitchenordersystem`
+for example: ` C:\projects\golang\sharedkitchenordersystem> docker build --tag sharedkitchendocker --no-cache C:\projects\golang\sharedkitchenordersystem`
 
 step2: run the following command to launch the application 
 `docker run -e noOfOrdersToRead=10 sharedkitchendocker`
